@@ -8,15 +8,33 @@
 #import "ViewController.h"
 #import <OpenTok/OpenTok.h>
 
+#include <arpa/inet.h>
+#include <net/if.h>
+#include <ifaddrs.h>
+#include <net/if_dl.h>
+
 @interface ViewController ()
 <OTSessionDelegate, OTSubscriberKitDelegate, OTPublisherDelegate>
 
 @end
 
+@interface OTSession()
+- (void)setApiRootURL:(NSURL*)aURL;
+@end
+
+
 @implementation ViewController {
     OTSession* _session;
     OTPublisher* _publisher;
     OTSubscriber* _subscriber;
+    UILabel* _wifiLabel;
+    UILabel* _wwanLabel;
+    dispatch_source_t _timer;
+    
+    NSArray* _ignoredDeviceList;
+    BOOL _reconnecting;
+    
+    int _wifiIn, _wifiOut, _wwanIn, _wwanOut;
 }
 static double widgetHeight = 240;
 static double widgetWidth = 320;
@@ -24,27 +42,132 @@ static double widgetWidth = 320;
 // *** Fill the following variables using your own Project info  ***
 // ***          https://dashboard.tokbox.com/projects            ***
 // Replace with your OpenTok API key
-static NSString* const kApiKey = @"";
+static NSString* const kApiKey = @"100";
 // Replace with your generated session ID
-static NSString* const kSessionId = @"";
+static NSString* const kSessionId = @"1_MX4xMDB-fjE0MzA5NDM1NTc5OTF-eXowMDhDZXY0cFkvVkxreEFCVDZIOWZSfn4";
 // Replace with your generated token
-static NSString* const kToken = @"";
+static NSString* const kToken = @"T1==cGFydG5lcl9pZD0xMDAmc2RrX3ZlcnNpb249dGJwaHAtdjAuOTEuMjAxMS0wNy0wNSZzaWc9NTg1Yjk4YWVhOTg4MmZlZTk2N2ZkNzZkODNkNjFkOTQwNzQ0ZDNkZDpzZXNzaW9uX2lkPTFfTVg0eE1EQi1makUwTXpBNU5ETTFOVGM1T1RGLWVYb3dNRGhEWlhZMGNGa3ZWa3hyZUVGQ1ZEWklPV1pTZm40JmNyZWF0ZV90aW1lPTE0MzA5NDI3OTQmcm9sZT1tb2RlcmF0b3Imbm9uY2U9MTQzMDk0Mjc5NC41MTU4ODAwODE3NTgyJmV4cGlyZV90aW1lPTE0MzM1MzQ3OTQ=";
 
 // Change to NO to subscribe to streams other than your own.
-static bool subscribeToSelf = NO;
+static bool subscribeToSelf = YES;
 
 #pragma mark - View lifecycle
 
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+    _wifiLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 480, 320, 50)];
+    _wwanLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 520, 320, 50)];
+    [self.view addSubview:_wifiLabel];
+    [self.view addSubview:_wwanLabel];
     
     // Step 1: As the view comes into the foreground, initialize a new instance
     // of OTSession and begin the connection process.
     _session = [[OTSession alloc] initWithApiKey:kApiKey
                                        sessionId:kSessionId
                                         delegate:self];
+    //[_session setApiRootURL:[NSURL URLWithString:@"https://anvil-tbdev.opentok.com"]];
     [self doConnect];
+    
+    _timer = CreateDispatchTimer(5ull * NSEC_PER_SEC,
+                                 0ull * NSEC_PER_SEC,
+                                 dispatch_get_main_queue(),
+                                 ^{
+                                     [self getDataCounters];
+                                 });
+    
+    UITapGestureRecognizer* tapRecognizer =
+    [[UITapGestureRecognizer alloc] initWithTarget:self
+                                            action:@selector(reloadSession)];
+    [self.view addGestureRecognizer:tapRecognizer];
+}
+
+- (void)reloadSession {    
+    _reconnecting = YES;
+    [_session disconnect];
+}
+
+dispatch_source_t CreateDispatchTimer(uint64_t interval,
+                                      uint64_t leeway,
+                                      dispatch_queue_t queue,
+                                      dispatch_block_t block)
+{
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,
+                                                     0, 0, queue);
+    if (timer)
+    {
+        dispatch_source_set_timer(timer, dispatch_walltime(NULL, 0), interval, leeway);
+        dispatch_source_set_event_handler(timer, block);
+        dispatch_resume(timer);
+    }
+    return timer;
+}
+
+- (void)getDataCounters
+{
+    BOOL   success;
+    struct ifaddrs *addrs;
+    const struct ifaddrs *cursor;
+    const struct if_data *networkStatisc;
+    
+    int WiFiSent = 0;
+    int WiFiReceived = 0;
+    int WWANSent = 0;
+    int WWANReceived = 0;
+    
+    NSString *name=[[NSString alloc]init];
+    
+    success = getifaddrs(&addrs) == 0;
+    if (success)
+    {
+        cursor = addrs;
+        while (cursor != NULL)
+        {
+            name=[NSString stringWithFormat:@"%s",cursor->ifa_name];
+            //NSLog(@"ifa_name %s == %@\n", cursor->ifa_name,name);
+            // names of interfaces: en0 is WiFi ,pdp_ip0 is WWAN
+            
+            if (cursor->ifa_addr->sa_family == AF_LINK)
+            {
+                if ([name hasPrefix:@"en0"])
+                {
+                    networkStatisc = (const struct if_data *) cursor->ifa_data;
+                    WiFiSent+=networkStatisc->ifi_obytes;
+                    WiFiReceived+=networkStatisc->ifi_ibytes;
+                }
+                
+                if ([name hasPrefix:@"pdp_ip0"])
+                {
+                    networkStatisc = (const struct if_data *) cursor->ifa_data;
+                    WWANSent+=networkStatisc->ifi_obytes;
+                    WWANReceived+=networkStatisc->ifi_ibytes;
+                }
+            }
+            
+            cursor = cursor->ifa_next;
+        }
+        
+        freeifaddrs(addrs);
+    }
+    
+    NSString* wifiText = [NSString stringWithFormat:@"WiFi %d/%d",
+                           WiFiReceived - _wifiIn,
+                           WiFiSent - _wifiOut];
+    NSString* wwanText = [NSString stringWithFormat:@"WWAN %d/%d",
+                            WWANReceived - _wwanIn,
+                            WWANSent - _wwanOut];
+                            
+    dispatch_async(dispatch_get_main_queue(), ^() {
+        [_wifiLabel setText:wifiText];
+        [_wwanLabel setText:wwanText];
+    });
+    NSLog(@"%@", wifiText);
+    NSLog(@"%@", wwanText);
+    
+    _wwanIn = WWANReceived;
+    _wwanOut = WWANSent;
+    _wifiIn = WiFiReceived;
+    _wifiOut = WiFiSent;
 }
 
 - (BOOL)prefersStatusBarHidden
@@ -160,6 +283,12 @@ static bool subscribeToSelf = NO;
     [NSString stringWithFormat:@"Session disconnected: (%@)",
      session.sessionId];
     NSLog(@"sessionDidDisconnect (%@)", alertMessage);
+    
+    if (_reconnecting) {
+        //[OTSession setNetworkIgnoreList:_ignoredDeviceList];
+        [self doConnect];
+        _reconnecting = NO;
+    }
 }
 
 
