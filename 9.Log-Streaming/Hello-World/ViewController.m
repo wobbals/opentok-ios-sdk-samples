@@ -35,15 +35,16 @@ static z_stream compressor;
 static NSMutableArray* messageQueue;
 static uint64_t bytesCompressedIn;
 static uint64_t bytesCompressedOut;
+static NSData* compressorBytesIn;
 
 // *** Fill the following variables using your own Project info  ***
 // ***          https://dashboard.tokbox.com/projects            ***
 // Replace with your OpenTok API key
 static NSString* const kApiKey = @"100";
 // Replace with your generated session ID
-static NSString* const kSessionId = @"1_MX4xMDB-fjE0Mjc0NzU0NzA3NDV-OWtpbjl2azdIWnFLcFBZMW9CemlUVitpfn4";
+static NSString* const kSessionId = @"1_MX4xMDB-fjE0Mjc0ODQwMTkzNzJ-ZUNvMHVGbjVoUHlTcXQ0YkFpV1dmTUo1fn4";
 // Replace with your generated token
-static NSString* const kToken = @"T1==cGFydG5lcl9pZD0xMDAmc2RrX3ZlcnNpb249dGJwaHAtdjAuOTEuMjAxMS0wNy0wNSZzaWc9MGU2MTQwOGRmYzVkMmVmN2U5ZmQ1NGRiM2RkYWFkMTgyNWM5MWM3OTpzZXNzaW9uX2lkPTFfTVg0eE1EQi1makUwTWpjME56VTBOekEzTkRWLU9XdHBiamwyYXpkSVduRkxjRkJaTVc5Q2VtbFVWaXRwZm40JmNyZWF0ZV90aW1lPTE0Mjc0NzQ4NjYmcm9sZT1tb2RlcmF0b3Imbm9uY2U9MTQyNzQ3NDg2Ni44MTg0NzAyNjc3NjAwJmV4cGlyZV90aW1lPTE0MzAwNjY4NjY=";
+static NSString* const kToken = @"T1==cGFydG5lcl9pZD0xMDAmc2RrX3ZlcnNpb249dGJwaHAtdjAuOTEuMjAxMS0wNy0wNSZzaWc9OGJiOGVhNjI0NjkyYjY2NGNiZGQ3NGMyZTY2N2I5ZGM0YTUzZmI1ZTpzZXNzaW9uX2lkPTFfTVg0eE1EQi1makUwTWpjME9EUXdNVGt6TnpKLVpVTnZNSFZHYmpWb1VIbFRjWFEwWWtGcFYxZG1UVW8xZm40JmNyZWF0ZV90aW1lPTE0Mjc0ODM0MTQmcm9sZT1tb2RlcmF0b3Imbm9uY2U9MTQyNzQ4MzQxNC4zMzYxMTM1NDUxOTYzJmV4cGlyZV90aW1lPTE0MzAwNzU0MTQ=";
 
 // Change to NO to subscribe to streams other than your own.
 static bool subscribeToSelf = NO;
@@ -51,8 +52,19 @@ static bool subscribeToSelf = NO;
 #pragma mark - View lifecycle
 #define COMPRESSOR_OUTPUT_BUFSIZE 4096
 
+voidpf compressor_alloc(voidpf opaque, uInt items, uInt size) {
+    return calloc(items, size);
+}
+
+void compressor_free(voidpf opaque, voidpf address) {
+    free(address);
+}
+
 + (void)initialize {
     logQueue = dispatch_queue_create("log-queue", DISPATCH_QUEUE_SERIAL);
+    compressor.zalloc = compressor_alloc;
+    compressor.zfree = compressor_free;
+    compressor.opaque = Z_NULL;
     deflateInit(&compressor, Z_DEFAULT_COMPRESSION);
     messageQueue = [[NSMutableArray alloc] init];
     unsigned char* compressorOutput = malloc(COMPRESSOR_OUTPUT_BUFSIZE);
@@ -68,25 +80,32 @@ static bool subscribeToSelf = NO;
     
     // cycle compressor input & output
     while (0 == compressor.avail_in && messageQueue.count > 0) {
-        NSData* nextData = (NSData*) [messageQueue objectAtIndex:0];
+        compressorBytesIn = (NSData*) [messageQueue objectAtIndex:0];
         [messageQueue removeObjectAtIndex:0];
-        compressor.avail_in = (unsigned int) nextData.length;
-        compressor.next_in = (unsigned char*) [nextData bytes];
+        compressor.avail_in = (unsigned int) compressorBytesIn.length;
+        compressor.next_in = (unsigned char*) [compressorBytesIn bytes];
         bytesCompressedIn += compressor.avail_in;
-        int result = deflate(&compressor, Z_NO_FLUSH);
-        if (Z_OK != result) {
-            NSLog(@"deflate error %d: %s", result, compressor.msg);
+        while (0 < compressor.avail_in) {
+            [ViewController tryFlushCompressorOut];
+            int result = deflate(&compressor, Z_NO_FLUSH);
+            if (Z_OK != result) {
+                NSLog(@"deflate error %d: %s", result, compressor.msg);
+            }
         }
     }
-    
+}
+
++ (BOOL)tryFlushCompressorOut {
     if (0 == compressor.avail_out) {
-        compressor.avail_out = COMPRESSOR_OUTPUT_BUFSIZE;
-        bytesCompressedOut += COMPRESSOR_OUTPUT_BUFSIZE;
-        NSLog(@"produced %d compressed bytes", COMPRESSOR_OUTPUT_BUFSIZE);
-        NSLog(@"compressed %llu bytes", bytesCompressedIn);
+        NSLog(@"compressed bytes out %llu", bytesCompressedOut);
+        NSLog(@"compressed bytes in  %llu", bytesCompressedIn);
         NSLog(@"compression ratio %f",
               (double)bytesCompressedOut / (double)bytesCompressedIn);
+        compressor.avail_out = COMPRESSOR_OUTPUT_BUFSIZE;
+        bytesCompressedOut += COMPRESSOR_OUTPUT_BUFSIZE;
+        return YES;
     }
+    return NO;
 }
 
 - (void)viewDidLoad
@@ -94,6 +113,7 @@ static bool subscribeToSelf = NO;
     [OpenTokObjC setLogBlockQueue:logQueue];
     [OpenTokObjC setLogBlock:^(NSString* message, void* arg) {
         [ViewController enqueueLogForCompression:message];
+        //NSLog(@"%@", message);
     }];
 
     [super viewDidLoad];
