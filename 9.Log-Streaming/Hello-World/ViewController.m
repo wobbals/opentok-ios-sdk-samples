@@ -7,7 +7,7 @@
 
 #import "ViewController.h"
 #import <OpenTok/OpenTok.h>
-#include <zlib.h>
+#import "TBLogStreamer.h"
 
 @interface OpenTokObjC : NSObject
 + (void)setLogBlockQueue:(dispatch_queue_t)queue;
@@ -30,12 +30,6 @@
 }
 static double widgetHeight = 240;
 static double widgetWidth = 320;
-static dispatch_queue_t logQueue;
-static z_stream compressor;
-static NSMutableArray* messageQueue;
-static uint64_t bytesCompressedIn;
-static uint64_t bytesCompressedOut;
-static NSData* compressorBytesIn;
 
 // *** Fill the following variables using your own Project info  ***
 // ***          https://dashboard.tokbox.com/projects            ***
@@ -49,71 +43,20 @@ static NSString* const kToken = @"T1==cGFydG5lcl9pZD0xMDAmc2RrX3ZlcnNpb249dGJwaH
 // Change to NO to subscribe to streams other than your own.
 static bool subscribeToSelf = NO;
 
+static dispatch_queue_t logQueue;
+
 #pragma mark - View lifecycle
-#define COMPRESSOR_OUTPUT_BUFSIZE 4096
-
-voidpf compressor_alloc(voidpf opaque, uInt items, uInt size) {
-    return calloc(items, size);
-}
-
-void compressor_free(voidpf opaque, voidpf address) {
-    free(address);
-}
 
 + (void)initialize {
     logQueue = dispatch_queue_create("log-queue", DISPATCH_QUEUE_SERIAL);
-    compressor.zalloc = compressor_alloc;
-    compressor.zfree = compressor_free;
-    compressor.opaque = Z_NULL;
-    deflateInit(&compressor, Z_DEFAULT_COMPRESSION);
-    messageQueue = [[NSMutableArray alloc] init];
-    unsigned char* compressorOutput = malloc(COMPRESSOR_OUTPUT_BUFSIZE);
-    compressor.next_out = compressorOutput;
-    compressor.avail_out = COMPRESSOR_OUTPUT_BUFSIZE;
-    bytesCompressedOut += COMPRESSOR_OUTPUT_BUFSIZE;
-}
-
-+ (void)enqueueLogForCompression:(NSString*)message {
-    // store message
-    NSData* messageUTF8 = [message dataUsingEncoding:NSUTF8StringEncoding];
-    [messageQueue addObject:messageUTF8];
-    
-    // cycle compressor input & output
-    while (0 == compressor.avail_in && messageQueue.count > 0) {
-        compressorBytesIn = (NSData*) [messageQueue objectAtIndex:0];
-        [messageQueue removeObjectAtIndex:0];
-        compressor.avail_in = (unsigned int) compressorBytesIn.length;
-        compressor.next_in = (unsigned char*) [compressorBytesIn bytes];
-        bytesCompressedIn += compressor.avail_in;
-        while (0 < compressor.avail_in) {
-            [ViewController tryFlushCompressorOut];
-            int result = deflate(&compressor, Z_NO_FLUSH);
-            if (Z_OK != result) {
-                NSLog(@"deflate error %d: %s", result, compressor.msg);
-            }
-        }
-    }
-}
-
-+ (BOOL)tryFlushCompressorOut {
-    if (0 == compressor.avail_out) {
-        NSLog(@"compressed bytes out %llu", bytesCompressedOut);
-        NSLog(@"compressed bytes in  %llu", bytesCompressedIn);
-        NSLog(@"compression ratio %f",
-              (double)bytesCompressedOut / (double)bytesCompressedIn);
-        compressor.avail_out = COMPRESSOR_OUTPUT_BUFSIZE;
-        bytesCompressedOut += COMPRESSOR_OUTPUT_BUFSIZE;
-        return YES;
-    }
-    return NO;
 }
 
 - (void)viewDidLoad
 {
+    [TBLogStreamer sharedInstance];
     [OpenTokObjC setLogBlockQueue:logQueue];
     [OpenTokObjC setLogBlock:^(NSString* message, void* arg) {
-        [ViewController enqueueLogForCompression:message];
-        //NSLog(@"%@", message);
+        [[TBLogStreamer sharedInstance] compressMessage:message];
     }];
 
     [super viewDidLoad];
