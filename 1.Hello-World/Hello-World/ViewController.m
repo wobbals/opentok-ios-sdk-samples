@@ -13,6 +13,8 @@
 #include <ifaddrs.h>
 #include <net/if_dl.h>
 
+extern NSString* kOTReachabilityChangedNotification;
+
 @interface ViewController ()
 <OTSessionDelegate, OTSubscriberKitDelegate, OTPublisherDelegate>
 
@@ -33,6 +35,7 @@
     
     NSArray* _ignoredDeviceList;
     BOOL _reconnecting;
+    NSMutableArray* _ignoredIdentifierList;
     
     int _wifiIn, _wifiOut, _wwanIn, _wwanOut;
 }
@@ -56,6 +59,8 @@ static bool subscribeToSelf = YES;
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+    _ignoredIdentifierList = [NSMutableArray array];
+    
     _wifiLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 480, 320, 50)];
     _wwanLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 520, 320, 50)];
     [self.view addSubview:_wifiLabel];
@@ -66,7 +71,6 @@ static bool subscribeToSelf = YES;
     _session = [[OTSession alloc] initWithApiKey:kApiKey
                                        sessionId:kSessionId
                                         delegate:self];
-    //[_session setApiRootURL:[NSURL URLWithString:@"https://anvil-tbdev.opentok.com"]];
     [self doConnect];
     
     _timer = CreateDispatchTimer(5ull * NSEC_PER_SEC,
@@ -76,15 +80,33 @@ static bool subscribeToSelf = YES;
                                      [self getDataCounters];
                                  });
     
-    UITapGestureRecognizer* tapRecognizer =
-    [[UITapGestureRecognizer alloc] initWithTarget:self
-                                            action:@selector(reloadSession)];
-    [self.view addGestureRecognizer:tapRecognizer];
+    [[NSNotificationCenter defaultCenter]
+     addObserver:self
+     selector:@selector(reloadSession)
+     name:kOTReachabilityChangedNotification
+     object:nil];
 }
 
-- (void)reloadSession {    
+- (void)reloadSession {
+    NSLog(@"RECONNECTING");
     _reconnecting = YES;
+    // Store identifiers likely to trip us up right when we reconnect.
+    if (_publisher.stream.streamId) {
+        [_ignoredIdentifierList addObject:_publisher.stream.streamId];
+    }
+    if (_session.connection.connectionId) {
+        [_ignoredIdentifierList addObject:_session.connection.connectionId];
+    }
     [_session disconnect];
+}
+
+- (BOOL)isIgnoredIdentifier:(NSString*)anIdentifier {
+    for (NSString* identifier in _ignoredIdentifierList) {
+        if ([identifier isEqualToString:anIdentifier]) {
+            return YES;
+        }
+    }
+    return NO;
 }
 
 dispatch_source_t CreateDispatchTimer(uint64_t interval,
@@ -297,6 +319,11 @@ dispatch_source_t CreateDispatchTimer(uint64_t interval,
 {
     NSLog(@"session streamCreated (%@)", stream.streamId);
     
+    if ([self isIgnoredIdentifier:stream.streamId]) {
+        NSLog(@"IGNORE STREAM %@", stream);
+        return;
+    }
+    
     // Step 3a: (if NO == subscribeToSelf): Begin subscribing to a stream we
     // have seen on the OpenTok session.
     if (nil == _subscriber && !subscribeToSelf)
@@ -309,7 +336,12 @@ dispatch_source_t CreateDispatchTimer(uint64_t interval,
 streamDestroyed:(OTStream *)stream
 {
     NSLog(@"session streamDestroyed (%@)", stream.streamId);
-    
+
+    if ([self isIgnoredIdentifier:stream.streamId]) {
+        NSLog(@"IGNORE STREAM %@", stream);
+        return;
+    }
+
     if ([_subscriber.stream.streamId isEqualToString:stream.streamId])
     {
         [self cleanupSubscriber];
@@ -320,12 +352,23 @@ streamDestroyed:(OTStream *)stream
 connectionCreated:(OTConnection *)connection
 {
     NSLog(@"session connectionCreated (%@)", connection.connectionId);
+    
+    if ([self isIgnoredIdentifier:connection.connectionId]) {
+        NSLog(@"IGNORE CONNECTION %@", connection);
+        return;
+    }
+
 }
 
 - (void)    session:(OTSession *)session
 connectionDestroyed:(OTConnection *)connection
 {
     NSLog(@"session connectionDestroyed (%@)", connection.connectionId);
+    if ([self isIgnoredIdentifier:connection.connectionId]) {
+        NSLog(@"IGNORE CONNECTION %@", connection);
+        return;
+    }
+
     if ([_subscriber.stream.connection.connectionId
          isEqualToString:connection.connectionId])
     {
