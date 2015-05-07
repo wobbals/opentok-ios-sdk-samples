@@ -500,6 +500,7 @@ static const GLsizei kNumTextures = 3 * kNumTextureSets;
     
     float imageRatio =
     (float)imageSize.width / (float)imageSize.height;
+    imageRatio = 1 / imageRatio;
     float viewportRatio =
     (float)viewportSize.width / (float)viewportSize.height;
     
@@ -516,7 +517,7 @@ static const GLsizei kNumTextures = 3 * kNumTextureSets;
     // Adjust position coordinates based on how the image will render to the
     // viewport. This logic tree implements a "scale to fill" semantic. You can
     // invert the logic if "scale to fit" works better for your needs.
-    if (imageRatio < viewportRatio) {
+    if (imageRatio > viewportRatio) {
         scaleY = viewportRatio / imageRatio;
     } else {
         scaleX = imageRatio / viewportRatio;
@@ -526,23 +527,40 @@ static const GLsizei kNumTextures = 3 * kNumTextureSets;
         scaleX *= -1;
     }
     
+//    _vertices[0] = -1 * scaleX;
+//    _vertices[1] = -1 * scaleY;
+//    _vertices[2] = 0;
+//    _vertices[3] = 1;
+//    _vertices[4] = 1 * scaleX;
+//    _vertices[5] = -1 * scaleY;
+//    _vertices[6] = 1;
+//    _vertices[7] = 1;
+//    _vertices[8] = 1 * scaleX;
+//    _vertices[9] = 1 * scaleY;
+//    _vertices[10] = 1;
+//    _vertices[11] = 0;
+//    _vertices[12] = -1 * scaleX;
+//    _vertices[13] = 1 * scaleY;
+//    _vertices[14] = 0;
+//    _vertices[15] = 0;
+
     _vertices[0] = -1 * scaleX;
     _vertices[1] = -1 * scaleY;
-    _vertices[2] = 0;
+    _vertices[2] = 1;
     _vertices[3] = 1;
     _vertices[4] = 1 * scaleX;
     _vertices[5] = -1 * scaleY;
     _vertices[6] = 1;
-    _vertices[7] = 1;
+    _vertices[7] = 0;
     _vertices[8] = 1 * scaleX;
     _vertices[9] = 1 * scaleY;
-    _vertices[10] = 1;
+    _vertices[10] = 0;
     _vertices[11] = 0;
     _vertices[12] = -1 * scaleX;
     _vertices[13] = 1 * scaleY;
     _vertices[14] = 0;
-    _vertices[15] = 0;
-    
+    _vertices[15] = 1;
+
     glBindBuffer(GL_ARRAY_BUFFER, _vertexBuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(_vertices), _vertices,
                  GL_DYNAMIC_DRAW);

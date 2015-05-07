@@ -26,11 +26,11 @@ static double widgetWidth = 320;
 // *** Fill the following variables using your own Project info  ***
 // ***          https://dashboard.tokbox.com/projects            ***
 // Replace with your OpenTok API key
-static NSString* const kApiKey = @"";
+static NSString* const kApiKey = @"100";
 // Replace with your generated session ID
-static NSString* const kSessionId = @"";
+static NSString* const kSessionId = @"2_MX4xMDB-fjE0MzEwMzgwMzc3ODF-NnZEeTdZNE45elByYStERFlmUVhpQTh1fn4";
 // Replace with your generated token
-static NSString* const kToken = @"";
+static NSString* const kToken = @"T1==cGFydG5lcl9pZD0xMDAmc2RrX3ZlcnNpb249dGJwaHAtdjAuOTEuMjAxMS0wNy0wNSZzaWc9NTJlMDk1MjBkMWVjNWQ4ZmY0Y2Q3MjIyNzYwYTM1M2YyZTc5N2MzYTpzZXNzaW9uX2lkPTJfTVg0eE1EQi1makUwTXpFd016Z3dNemMzT0RGLU5uWkVlVGRaTkU0NWVsQnlZU3RFUkZsbVVWaHBRVGgxZm40JmNyZWF0ZV90aW1lPTE0MzEwMzc2MDImcm9sZT1tb2RlcmF0b3Imbm9uY2U9MTQzMTAzNzYwMi44NTQ1ODk4MzYxODEzJmV4cGlyZV90aW1lPTE0MzM2Mjk2MDI=";
 
 // Change to NO to subscribe to streams other than your own.
 static bool subscribeToSelf = YES;
@@ -92,6 +92,8 @@ static bool subscribeToSelf = YES;
     _publisher = [[TBExamplePublisher alloc]
                   initWithDelegate:self
                   name:[[UIDevice currentDevice] name]];
+    [_publisher setPublishAudio:NO];
+    //[_publisher setVideoType:OTPublisherKitVideoTypeScreen];
     
     OTError *error = nil;
     [_session publish:_publisher error:&error];

@@ -49,7 +49,7 @@
 -(id)init {
     self = [super init];
     if (self) {
-        _capturePreset = AVCaptureSessionPreset352x288;
+        _capturePreset = AVCaptureSessionPreset1280x720;
         [[self class] dimensionsForCapturePreset:_capturePreset
                                            width:&_captureWidth
                                           height:&_captureHeight];
@@ -651,7 +651,8 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
     minFrameDuration.timescale / minFrameDuration.value;
     // TODO: how do we measure this from AVFoundation?
     _videoFrame.format.estimatedCaptureDelay = 100;
-    _videoFrame.orientation = [self currentDeviceOrientation];
+    //_videoFrame.orientation = [self currentDeviceOrientation];
+    _videoFrame.orientation = OTVideoOrientationUp;
     
     [_videoFrame clearPlanes];
     uint8_t* sanitizedImageBuffer = NULL;
