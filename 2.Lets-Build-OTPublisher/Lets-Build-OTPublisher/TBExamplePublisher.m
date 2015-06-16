@@ -65,6 +65,16 @@
 
 #pragma mark - Public API
 
+#pragma mark Video Capture Passthroughss
+
+- (BOOL)torchOn {
+    return _defaultVideoCapture.torchOn;
+}
+
+- (void)setTorchOn:(BOOL)torchOn {
+    [_defaultVideoCapture setTorchOn:torchOn];
+}
+
 - (void)setCameraPosition:(AVCaptureDevicePosition)cameraPosition {
     [_defaultVideoCapture setCameraPosition:cameraPosition];
 }

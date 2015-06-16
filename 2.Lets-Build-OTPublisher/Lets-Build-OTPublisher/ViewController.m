@@ -47,6 +47,19 @@ static bool subscribeToSelf = YES;
                                        sessionId:kSessionId
                                            delegate:self];
     [self doConnect];
+    
+    UIGestureRecognizer* tap =
+    [[UITapGestureRecognizer alloc] initWithTarget:self
+                                            action:@selector(taptap:)];
+    [self.view addGestureRecognizer:tap];
+}
+
+- (void)taptap:(id)sender {
+    // Torch won't work when running through front camera. Ask Apple.
+    if (AVCaptureDevicePositionBack != _publisher.cameraPosition) {
+        [_publisher setCameraPosition:AVCaptureDevicePositionBack];
+    }
+    [_publisher setTorchOn:!_publisher.torchOn];
 }
 
 - (BOOL)prefersStatusBarHidden

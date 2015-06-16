@@ -32,4 +32,6 @@
 @property (readonly) NSArray* availableCameraPositions;
 - (BOOL)toggleCameraPosition;
 
+@property (nonatomic, assign) BOOL torchOn;
+
 @end

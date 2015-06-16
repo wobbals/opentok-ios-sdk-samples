@@ -113,8 +113,7 @@
     return [[[self videoInput] device] torchMode];
 }
 
-- (void) setTorchMode:(AVCaptureTorchMode) torchMode {
-    
+- (void)setTorchMode:(AVCaptureTorchMode) torchMode {
     AVCaptureDevice *device = [[self videoInput] device];
     if ([device isTorchModeSupported:torchMode] && [device torchMode] != torchMode) {
         NSError *error;
@@ -124,6 +123,18 @@
         } else {
             //Handle Error
         }
+    }
+}
+
+- (BOOL)torchOn {
+    return AVCaptureTorchModeOn == self.torchMode;
+}
+
+- (void)setTorchOn:(BOOL)torchOn {
+    if (torchOn) {
+        [self setTorchMode:AVCaptureTorchModeOn];
+    } else {
+        [self setTorchMode:AVCaptureTorchModeOff];
     }
 }
 

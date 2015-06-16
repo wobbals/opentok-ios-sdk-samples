@@ -13,4 +13,6 @@
 
 @property(nonatomic, assign) AVCaptureDevicePosition cameraPosition;
 
+@property(nonatomic) BOOL torchOn;
+
 @end
