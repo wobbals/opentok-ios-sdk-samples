@@ -31,7 +31,7 @@ static NSString* const kSessionId = @"";
 static NSString* const kToken = @"";
 
 // Change to NO to subscribe to streams other than your own.
-static bool subscribeToSelf = NO;
+static bool subscribeToSelf = YES;
 
 #pragma mark - View lifecycle
 
@@ -44,6 +44,7 @@ static bool subscribeToSelf = NO;
     _session = [[OTSession alloc] initWithApiKey:kApiKey
                                        sessionId:kSessionId
                                         delegate:self];
+    
     [self doConnect];
 }
 
@@ -91,6 +92,7 @@ static bool subscribeToSelf = NO;
     _publisher =
     [[OTPublisher alloc] initWithDelegate:self
                                      name:[[UIDevice currentDevice] name]];
+    [_publisher setPublishVideo:NO];
    
     OTError *error = nil;
     [_session publish:_publisher error:&error];
@@ -274,6 +276,12 @@ didFailWithError:(OTError*)error
                                                otherButtonTitles:nil] ;
         [alert show];
     });
+}
+
+- (void)subscriberVideoEnabled:(OTSubscriberKit *)subscriber
+                        reason:(OTSubscriberVideoEventReason)reason
+{
+    NSLog(@"video enabled?");
 }
 
 @end
