@@ -2,9 +2,13 @@ PODS:
   - OpenTok (2.6.0)
 
 DEPENDENCIES:
-  - OpenTok
+  - OpenTok (from `~/src/objc-sdk-src/Specs/OpenTok/2.6.0`)
+
+EXTERNAL SOURCES:
+  OpenTok:
+    :path: "~/src/objc-sdk-src/Specs/OpenTok/2.6.0"
 
 SPEC CHECKSUMS:
-  OpenTok: 2b99bd75055554f4028735fa84e4242e4932d245
+  OpenTok: 1fcc7409b97e595c22299fb31b07de1c2080b195
 
-COCOAPODS: 0.38.2
+COCOAPODS: 0.39.0.beta.4
