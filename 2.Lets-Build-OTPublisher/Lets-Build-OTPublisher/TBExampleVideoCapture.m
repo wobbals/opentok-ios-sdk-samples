@@ -500,6 +500,13 @@
     dispatch_after(delay,_capture_queue,^{
         [_captureSession startRunning];
     });
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                 (int64_t)(30 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        NSLog(@"SQUELCH");
+        [_captureSession stopRunning];
+    });
 
 }
 
