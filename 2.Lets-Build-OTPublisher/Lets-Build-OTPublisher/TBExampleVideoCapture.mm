@@ -12,6 +12,8 @@
 #import <CoreVideo/CoreVideo.h>
 #import "TBExampleVideoCapture.h"
 
+#import "libyuv.h"
+
 #define SYSTEM_VERSION_EQUAL_TO(v) \
 ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] == NSOrderedSame)
 #define SYSTEM_VERSION_GREATER_THAN(v) \
@@ -58,7 +60,7 @@
         if (RUNTIME_IPHONE_4S) {
             _capturePreset = AVCaptureSessionPresetMedium;
         } else {
-            _capturePreset = AVCaptureSessionPreset640x480;
+            _capturePreset = AVCaptureSessionPreset1280x720;
         }
         [[self class] dimensionsForCapturePreset:_capturePreset
                                            width:&_captureWidth
@@ -516,7 +518,7 @@
     int blackFrameHeight = 240;
     [self updateCaptureFormatWithWidth:blackFrameWidth height:blackFrameHeight];
     
-    _blackFrame = malloc(blackFrameWidth * blackFrameHeight * 3 / 2);
+    _blackFrame = (uint8_t*)malloc(blackFrameWidth * blackFrameHeight * 3 / 2);
     _blackFrameTimeStarted = CACurrentMediaTime();
     
     uint8_t* yPlane = _blackFrame;
@@ -654,10 +656,10 @@
             size_t planeLength =
             dataWidth;
             
-            uint8_t* baseAddress =
+            uint8_t* baseAddress = (uint8_t*)
             CVPixelBufferGetBaseAddressOfPlane(imageBuffer, i);
             
-            uint8_t* nextAddress =
+            uint8_t* nextAddress = (uint8_t*)
             CVPixelBufferGetBaseAddressOfPlane(imageBuffer, i + 1);
             
             nextPlaneContiguous = &(baseAddress[planeLength]) == nextAddress;
@@ -706,11 +708,11 @@
         CVPixelBufferGetHeightOfPlane(imageBuffer, i);
         sanitaryBufferSize += (planeImageWidth * planeImageHeight);
     }
-    uint8_t* newImageBuffer = malloc(sanitaryBufferSize);
+    uint8_t* newImageBuffer = (uint8_t*) malloc(sanitaryBufferSize);
     size_t bytesCopied = 0;
     for (int i = 0; i < CVPixelBufferGetPlaneCount(imageBuffer); i++) {
         [planes addPointer:&(newImageBuffer[bytesCopied])];
-        void* planeBaseAddress =
+        uint8_t* planeBaseAddress = (uint8_t*)
         CVPixelBufferGetBaseAddressOfPlane(imageBuffer, i);
         size_t planeDataWidth =
         CVPixelBufferGetBytesPerRowOfPlane(imageBuffer, i);
@@ -733,6 +735,111 @@
     return bytesCopied;
 }
 
+#define ASPECT_RATIO (4.0f / 3.0f)
+
+-(BOOL)enforceAspectRatio:(OTVideoFrame*)videoFrame
+{
+    double sourceWidth = videoFrame.format.imageWidth;
+    double sourceHeight = videoFrame.format.imageHeight;
+    double sourceAspectRatio = sourceWidth / sourceHeight;
+    
+    double destWidth = sourceWidth;
+    double destHeight = sourceHeight;
+    
+    // if image is wider than desired aspect ratio
+    if (sourceAspectRatio >= ASPECT_RATIO) {
+        destHeight = sourceHeight;
+        destWidth = destHeight * ASPECT_RATIO;
+    } else {
+        destWidth = sourceWidth;
+        destHeight = destWidth / ASPECT_RATIO;
+    }
+    
+    if (destWidth > sourceWidth) {
+        double scaleFactor = destWidth / sourceWidth;
+        destWidth /= scaleFactor;
+        destHeight /= scaleFactor;
+    }
+    if (destHeight > sourceHeight) {
+        double scaleFactor = destHeight / sourceHeight;
+        destWidth /= scaleFactor;
+        destHeight /= scaleFactor;
+    }
+    
+    destWidth = (((uint32_t)destWidth * 2) + 1) / 2;
+    destHeight = (((uint32_t)destHeight * 2) + 1) / 2;
+    
+    uint8_t* sourceFrame = (uint8_t*) [videoFrame.planes pointerAtIndex:0];
+    
+    double tmp = 0;
+    // compensating for rotation now could mean one less crop/resample later
+    libyuv::RotationMode rotationMode = libyuv::kRotate0;
+//    switch ([self currentDeviceOrientation]) {
+//        case OTVideoOrientationDown:
+//            rotationMode = kRotate270;
+//            tmp = destWidth;
+//            destWidth = destHeight;
+//            destWidth = tmp;
+//            break;
+//        case OTVideoOrientationUp:
+//            rotationMode = kRotate90;
+//            tmp = destWidth;
+//            destWidth = destHeight;
+//            destWidth = tmp;
+//            break;
+//        case OTVideoOrientationLeft:
+//            rotationMode = kRotate0;
+//            break;
+//        case OTVideoOrientationRight:
+//            rotationMode = kRotate180;
+//            break;
+//        default:
+//            rotationMode = kRotate0;
+//            break;
+//    }
+    uint32_t width = destWidth;
+    uint32_t halfWidth = width / 2;
+    uint32_t height = destHeight;
+    
+    uint8_t* destFrame = (uint8_t*)malloc(destWidth * destHeight * 3 / 2);
+    size_t destSize = destWidth * destHeight * 3 / 2;
+    uint8_t* dstY = destFrame;
+    uint8_t* dstU = &(dstY[width * height]);
+    uint8_t* dstV = &(dstY[width * height * 5 / 4]);
+    
+    uint32_t crop_x = (sourceWidth - destWidth) / 2;
+    uint32_t crop_y = (sourceHeight - destHeight) / 2;
+    
+    // maybe need different conversion functions for different pixel formats.
+    libyuv::ConvertToI420(sourceFrame,
+                  destSize,
+                  dstY,
+                  width,
+                  dstU,
+                  halfWidth,
+                  dstV,
+                  halfWidth,
+                  crop_x,
+                  crop_y,
+                  sourceWidth,
+                  sourceHeight,
+                  destWidth,
+                  destHeight,
+                  rotationMode,
+                  libyuv::FOURCC_NV12);
+    
+    // at this point, any other rotation mode will force another pass on
+    // a pixel buffer that we know will work fine.
+    videoFrame.format.pixelFormat = OTPixelFormatI420;
+    videoFrame.format.imageWidth = destWidth;
+    videoFrame.format.imageHeight = destHeight;
+    
+    [_videoFrame clearPlanes];
+    [_videoFrame.planes addPointer:dstY];
+    
+    return YES;
+}
+
 - (void)captureOutput:(AVCaptureOutput *)captureOutput
 didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
        fromConnection:(AVCaptureConnection *)connection {
@@ -744,15 +851,13 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
     CMTime time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
     CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
     CVPixelBufferLockBaseAddress(imageBuffer, 0);
-    
+
     _videoFrame.timestamp = time;
     uint32_t height = (uint32_t)CVPixelBufferGetHeight(imageBuffer);
     uint32_t width = (uint32_t)CVPixelBufferGetWidth(imageBuffer);
-    if (width != _captureWidth || height != _captureHeight) {
-        [self updateCaptureFormatWithWidth:width height:height];
-    }
     _videoFrame.format.imageWidth = width;
     _videoFrame.format.imageHeight = height;
+
     CMTime minFrameDuration;
     if (SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"7.0")) {
         minFrameDuration = _videoInput.device.activeVideoMinFrameDuration;
@@ -785,7 +890,25 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
                            planes:_videoFrame.planes];
     }
     
+    BOOL aspectRatioCorrected = NO;
+    if (ASPECT_RATIO != ((double)width / (double)height)) {
+        aspectRatioCorrected = [self enforceAspectRatio:_videoFrame];
+    }
+    
+    if (!aspectRatioCorrected &&
+        (_videoFrame.format.imageWidth != _captureWidth ||
+        _videoFrame.format.imageHeight != _captureHeight))
+    {
+        [self updateCaptureFormatWithWidth:_videoFrame.format.imageWidth
+                                    height:_videoFrame.format.imageHeight];
+    }
+
     [_videoCaptureConsumer consumeFrame:_videoFrame];
+    
+    if (aspectRatioCorrected) {
+        free([_videoFrame.planes pointerAtIndex:0]);
+        [_videoFrame clearPlanes];
+    }
     
     free(sanitizedImageBuffer);
     
