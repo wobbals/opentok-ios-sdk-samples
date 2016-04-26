@@ -37,7 +37,7 @@
 		D44261B5185FA5C200E23699 /* TBExamplePublisher.m in Sources */ = {isa = PBXBuildFile; fileRef = D44261B4185FA5C200E23699 /* TBExamplePublisher.m */; };
 		D44261BA185FA64100E23699 /* TBExampleVideoRender.m in Sources */ = {isa = PBXBuildFile; fileRef = D44261B7185FA64100E23699 /* TBExampleVideoRender.m */; };
 		D44261BB185FA64100E23699 /* ShaderUtilities.c in Sources */ = {isa = PBXBuildFile; fileRef = D44261B8185FA64100E23699 /* ShaderUtilities.c */; };
-		D44261D5185FADAB00E23699 /* TBExampleVideoCapture.mm in Sources */ = {isa = PBXBuildFile; fileRef = D44261D4185FADAB00E23699 /* TBExampleVideoCapture.mm */; };
+		D44261D5185FADAB00E23699 /* TBExampleVideoCapture.m in Sources */ = {isa = PBXBuildFile; fileRef = D44261D4185FADAB00E23699 /* TBExampleVideoCapture.m */; };
 		D44261D8185FAED800E23699 /* TBExampleSubscriber.m in Sources */ = {isa = PBXBuildFile; fileRef = D44261D7185FAED800E23699 /* TBExampleSubscriber.m */; };
 		D4873B2AFBABB0B876A84A96 /* libPods.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 2DE0B7E4999C8669CFE3DDD4 /* libPods.a */; };
 		D4F8FD9F194125E300364672 /* GLKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D4F8FD9E194125E300364672 /* GLKit.framework */; };
@@ -95,7 +95,7 @@
 		D44261B8185FA64100E23699 /* ShaderUtilities.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = ShaderUtilities.c; sourceTree = "<group>"; };
 		D44261B9185FA64100E23699 /* ShaderUtilities.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ShaderUtilities.h; sourceTree = "<group>"; };
 		D44261D3185FADAB00E23699 /* TBExampleVideoCapture.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TBExampleVideoCapture.h; sourceTree = "<group>"; };
-		D44261D4185FADAB00E23699 /* TBExampleVideoCapture.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = TBExampleVideoCapture.mm; sourceTree = "<group>"; };
+		D44261D4185FADAB00E23699 /* TBExampleVideoCapture.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TBExampleVideoCapture.m; sourceTree = "<group>"; };
 		D44261D6185FAED800E23699 /* TBExampleSubscriber.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TBExampleSubscriber.h; sourceTree = "<group>"; };
 		D44261D7185FAED800E23699 /* TBExampleSubscriber.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TBExampleSubscriber.m; sourceTree = "<group>"; };
 		D444CAA51CCE4EF200BC78EF /* basic_types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = basic_types.h; sourceTree = "<group>"; };
@@ -222,7 +222,7 @@
 				D44261D6185FAED800E23699 /* TBExampleSubscriber.h */,
 				D44261D7185FAED800E23699 /* TBExampleSubscriber.m */,
 				D44261D3185FADAB00E23699 /* TBExampleVideoCapture.h */,
-				D44261D4185FADAB00E23699 /* TBExampleVideoCapture.mm */,
+				D44261D4185FADAB00E23699 /* TBExampleVideoCapture.m */,
 				D44261B6185FA64100E23699 /* TBExampleVideoRender.h */,
 				D44261B7185FA64100E23699 /* TBExampleVideoRender.m */,
 				D44261B8185FA64100E23699 /* ShaderUtilities.c */,
@@ -443,7 +443,7 @@
 				D44261D8185FAED800E23699 /* TBExampleSubscriber.m in Sources */,
 				D442616A185FA27400E23699 /* main.m in Sources */,
 				D44261BA185FA64100E23699 /* TBExampleVideoRender.m in Sources */,
-				D44261D5185FADAB00E23699 /* TBExampleVideoCapture.mm in Sources */,
+				D44261D5185FADAB00E23699 /* TBExampleVideoCapture.m in Sources */,
 				D44261BB185FA64100E23699 /* ShaderUtilities.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

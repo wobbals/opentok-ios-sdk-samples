@@ -743,8 +743,8 @@
     double sourceHeight = videoFrame.format.imageHeight;
     double sourceAspectRatio = sourceWidth / sourceHeight;
     
-    double destWidth = sourceWidth;
-    double destHeight = sourceHeight;
+    double destWidth = sourceHeight;
+    double destHeight = sourceWidth;
     
     // if image is wider than desired aspect ratio
     if (sourceAspectRatio >= ASPECT_RATIO) {
@@ -769,29 +769,27 @@
     destWidth = (((uint32_t)destWidth * 2) + 1) / 2;
     destHeight = (((uint32_t)destHeight * 2) + 1) / 2;
     
-    uint8_t* sourceFrame = (uint8_t*) [videoFrame.planes pointerAtIndex:0];
+    uint8_t* sourceV = (uint8_t*) [videoFrame.planes pointerAtIndex:0];
+    uint8_t* sourceUV = (uint8_t*) [videoFrame.planes pointerAtIndex:1];
     
+    enum RotationMode rotationMode = kRotate90;
     double tmp = 0;
-    // compensating for rotation now could mean one less crop/resample later
-    libyuv::RotationMode rotationMode = libyuv::kRotate0;
+//    // compensating for rotation now could mean one less crop/resample later
 //    switch ([self currentDeviceOrientation]) {
 //        case OTVideoOrientationDown:
+//            rotationMode = kRotate0;
+//            break;
+//        case OTVideoOrientationUp:
+//            rotationMode = kRotate180;
+//            break;
+//        case OTVideoOrientationLeft:
 //            rotationMode = kRotate270;
 //            tmp = destWidth;
 //            destWidth = destHeight;
-//            destWidth = tmp;
-//            break;
-//        case OTVideoOrientationUp:
-//            rotationMode = kRotate90;
-//            tmp = destWidth;
-//            destWidth = destHeight;
-//            destWidth = tmp;
-//            break;
-//        case OTVideoOrientationLeft:
-//            rotationMode = kRotate0;
+//            destHeight = tmp;
 //            break;
 //        case OTVideoOrientationRight:
-//            rotationMode = kRotate180;
+//            rotationMode = kRotate90;
 //            break;
 //        default:
 //            rotationMode = kRotate0;
@@ -803,6 +801,7 @@
     
     uint8_t* destFrame = (uint8_t*)malloc(destWidth * destHeight * 3 / 2);
     size_t destSize = destWidth * destHeight * 3 / 2;
+    size_t sourceSize = sourceWidth * sourceHeight * 3 / 2;
     uint8_t* dstY = destFrame;
     uint8_t* dstU = &(dstY[width * height]);
     uint8_t* dstV = &(dstY[width * height * 5 / 4]);
@@ -811,8 +810,8 @@
     uint32_t crop_y = (sourceHeight - destHeight) / 2;
     
     // maybe need different conversion functions for different pixel formats.
-    libyuv::ConvertToI420(sourceFrame,
-                  destSize,
+    ConvertToI420(sourceV,
+                  sourceSize,
                   dstY,
                   width,
                   dstU,
@@ -826,16 +825,37 @@
                   destWidth,
                   destHeight,
                   rotationMode,
-                  libyuv::FOURCC_NV12);
+                  FOURCC_NV12);
+//    NV12ToI420Rotate(sourceV,
+//                     sourceWidth,
+//                     sourceUV,
+//                     sourceWidth,
+//                     dstY,
+//                     destWidth,
+//                     dstU,
+//                     quarterWidth,
+//                     dstV,
+//                     quarterWidth,
+//                     sourceWidth,
+//                     sourceHeight,
+//                     rotationMode);
+    
     
     // at this point, any other rotation mode will force another pass on
     // a pixel buffer that we know will work fine.
     videoFrame.format.pixelFormat = OTPixelFormatI420;
     videoFrame.format.imageWidth = destWidth;
     videoFrame.format.imageHeight = destHeight;
+    videoFrame.orientation = OTVideoOrientationUp;
     
     [_videoFrame clearPlanes];
     [_videoFrame.planes addPointer:dstY];
+    [_videoFrame.planes addPointer:dstU];
+    [_videoFrame.planes addPointer:dstV];
+    
+    OTVideoFormat* format = [OTVideoFormat videoFormatI420WithWidth:width
+                                                             height:height];
+    [_videoFrame setFormat:format];
     
     return YES;
 }
