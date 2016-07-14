@@ -1,0 +1,7 @@
+platform :ios, '9.0'
+
+target 'CompoundEyeMultiparty' do
+
+end
+
+pod 'OpenTok', '2.7.1'
