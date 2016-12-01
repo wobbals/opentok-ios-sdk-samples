@@ -10,7 +10,7 @@
 @interface OTPublisherKit ()
 - (NSInteger)videoSSRC;
 - (NSInteger)audioSSRC;
-- (NSString*)statForKey:(NSString*)key lastUpdated:(struct timeval**)lastUpdated;
+- (NSString*)statForKey:(NSString*)key lastUpdated:(struct timeval*)lastUpdated;
 - (NSArray*)statsKeys;
 @end
 

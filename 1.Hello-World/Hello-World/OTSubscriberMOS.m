@@ -11,7 +11,7 @@ struct otk_subscriber;
 @interface OTSubscriberKit ()
 @property(readonly) struct otk_subscriber* otkitSubscriber;
 - (NSInteger)videoSSRC;
-- (NSString*)statForKey:(NSString*)key lastUpdated:(struct timeval**)lastUpdated;
+- (NSString*)statForKey:(NSString*)key lastUpdated:(struct timeval*)lastUpdated;
 - (NSArray*)statsKeys;
 @end
 void otk_subscriber_dump_stats(struct otk_subscriber *subscriber);
@@ -53,7 +53,7 @@ void otk_subscriber_gather_stats(struct otk_subscriber *subscriber);
     for (NSString* key in keys) {
         NSLog(@"%@: %@", key, [_subscriber statForKey:key lastUpdated:nil]);
     }
-    struct timeval* lastUpdated = nil;
+    struct timeval lastUpdated;
     NSString* bytesReceivedStr =
     [_subscriber statForKey:[NSString stringWithFormat:@"ssrc.%ld.bytesReceived", ssrc]
              lastUpdated:&lastUpdated];
@@ -71,10 +71,10 @@ void otk_subscriber_gather_stats(struct otk_subscriber *subscriber);
     NSInteger frameHeight = [frameHeightStr integerValue];
     NSInteger frameRate = [frameRateStr integerValue];
     
-    if (lastUpdated && lastUpdated->tv_sec != _statsLastUpdated.tv_sec) {
+    if (lastUpdated.tv_sec != _statsLastUpdated.tv_sec) {
         NSInteger frameSize = frameWidth * frameHeight;
         NSTimeInterval interval =
-        (lastUpdated->tv_sec + ((1.0 / USEC_PER_SEC) * lastUpdated->tv_usec)) -
+        (lastUpdated.tv_sec + ((1.0 / USEC_PER_SEC) * lastUpdated.tv_usec)) -
         (_statsLastUpdated.tv_sec + ((1.0 / USEC_PER_SEC) * _statsLastUpdated.tv_usec));
         
         [self calculateStatsWithFrameSize:frameSize
@@ -83,10 +83,9 @@ void otk_subscriber_gather_stats(struct otk_subscriber *subscriber);
                                 byteCount:(bytesReceived - _lastBytesReceived)];
         //NSLog(@"video bps: %ld", bitsPerSecond);
         
-        _statsLastUpdated = *lastUpdated;
+        _statsLastUpdated = lastUpdated;
         _lastBytesReceived = bytesReceived;
     }
-    free(lastUpdated);
     
     // force gather stats
     //otk_subscriber_gather_stats(_subscriber.otkitSubscriber);

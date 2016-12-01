@@ -155,7 +155,7 @@ static bool subscribeToSelf = YES;
 - (void)doSubscribe:(OTStream*)stream
 {
     _subscriber = [[OTSubscriber alloc] initWithStream:stream delegate:self];
-    //_submos = [[OTSubscriberMOS alloc] initWithSubscriber:_subscriber];
+    _submos = [[OTSubscriberMOS alloc] initWithSubscriber:_subscriber];
     
     OTError *error = nil;
     [_session subscribe:_subscriber error:&error];
