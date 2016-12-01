@@ -6,17 +6,28 @@
 //
 
 #import "ViewController.h"
+#import "OTSubscriberMOS.h"
+#import "OTPublisherMOS.h"
 #import <OpenTok/OpenTok.h>
 
 @interface ViewController ()
-<OTSessionDelegate, OTSubscriberKitDelegate, OTPublisherDelegate>
+<OTSessionDelegate, OTSubscriberKitDelegate, OTPublisherDelegate, OTSubscriberKitNetworkStatsDelegate>
 
 @end
+
+@interface OpenTokObjC
++ (void)setLogBlockQueue:(dispatch_queue_t)queue;
++ (void)setLogBlock:(void (^)(NSString* message, void* argument))logBlock;
+@end
+
+static dispatch_queue_t logQueue;
 
 @implementation ViewController {
     OTSession* _session;
     OTPublisher* _publisher;
     OTSubscriber* _subscriber;
+    OTSubscriberMOS* _submos;
+    OTPublisherMOS* _pubmos;
 }
 static double widgetHeight = 240;
 static double widgetWidth = 320;
@@ -24,14 +35,23 @@ static double widgetWidth = 320;
 // *** Fill the following variables using your own Project info  ***
 // ***          https://dashboard.tokbox.com/projects            ***
 // Replace with your OpenTok API key
-static NSString* const kApiKey = @"";
+static NSString* const kApiKey = @"100";
 // Replace with your generated session ID
-static NSString* const kSessionId = @"";
+static NSString* const kSessionId = @"1_MX4xMDB-fjE0ODA1NTAyMTQxODV-R1lKbUVnQmJNRjhyeFZ4b3VYUVJrNndifn4";
 // Replace with your generated token
-static NSString* const kToken = @"";
+static NSString* const kToken = @"T1==cGFydG5lcl9pZD0xMDAmc2RrX3ZlcnNpb249dGJwaHAtdjAuOTEuMjAxMS0wNy0wNSZzaWc9ZDlhNTJlMDllYjRlNDcwOTk0NWMwZWM3NTliODA3YmQ1YmM4ODFhZjpzZXNzaW9uX2lkPTFfTVg0eE1EQi1makUwT0RBMU5UQXlNVFF4T0RWLVIxbEtiVVZuUW1KTlJqaHllRlo0YjNWWVVWSnJObmRpZm40JmNyZWF0ZV90aW1lPTE0ODA1NTAxMTQmcm9sZT1tb2RlcmF0b3Imbm9uY2U9MTQ4MDU1MDExNC42MDg4MTMyMTgwNjE4MSZleHBpcmVfdGltZT0xNDgzMTQyMTE0";
 
 // Change to NO to subscribe to streams other than your own.
-static bool subscribeToSelf = NO;
+static bool subscribeToSelf = YES;
+
++ (void)initialize {
+    logQueue = dispatch_queue_create("log-queue", DISPATCH_QUEUE_SERIAL);
+    
+    [OpenTokObjC setLogBlockQueue:logQueue];
+    [OpenTokObjC setLogBlock:^(NSString* message, void* arg) {
+        //NSLog(@"%@", message);
+    }];
+}
 
 #pragma mark - View lifecycle
 
@@ -39,6 +59,22 @@ static bool subscribeToSelf = NO;
 {
     [super viewDidLoad];
     
+    _publisher =
+    [[OTPublisher alloc] initWithDelegate:self
+                                     name:[[UIDevice currentDevice] name]
+                               audioTrack:NO videoTrack:YES];
+    _pubmos = [[OTPublisherMOS alloc] initWithPublisher:_publisher];
+    [self.view addSubview:_publisher.view];
+    [_publisher.view setFrame:CGRectMake(0, 0, widgetWidth, widgetHeight)];
+
+    UITapGestureRecognizer* tap =
+    [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tap:)];
+    //[self.view addGestureRecognizer:tap];
+    
+    [self tap:nil];
+}
+
+- (void)tap:(id)sender {
     // Step 1: As the view comes into the foreground, initialize a new instance
     // of OTSession and begin the connection process.
     _session = [[OTSession alloc] initWithApiKey:kApiKey
@@ -88,10 +124,6 @@ static bool subscribeToSelf = NO;
  */
 - (void)doPublish
 {
-    _publisher =
-    [[OTPublisher alloc] initWithDelegate:self
-                                     name:[[UIDevice currentDevice] name]];
-   
     OTError *error = nil;
     [_session publish:_publisher error:&error];
     if (error)
@@ -99,8 +131,6 @@ static bool subscribeToSelf = NO;
         [self showAlert:[error localizedDescription]];
     }
     
-    [self.view addSubview:_publisher.view];
-    [_publisher.view setFrame:CGRectMake(0, 0, widgetWidth, widgetHeight)];
 }
 
 /**
@@ -111,6 +141,9 @@ static bool subscribeToSelf = NO;
     [_publisher.view removeFromSuperview];
     _publisher = nil;
     // this is a good place to notify the end-user that publishing has stopped.
+    
+    [_pubmos stop];
+    _pubmos = nil;
 }
 
 /**
@@ -122,6 +155,7 @@ static bool subscribeToSelf = NO;
 - (void)doSubscribe:(OTStream*)stream
 {
     _subscriber = [[OTSubscriber alloc] initWithStream:stream delegate:self];
+    //_submos = [[OTSubscriberMOS alloc] initWithSubscriber:_subscriber];
     
     OTError *error = nil;
     [_session subscribe:_subscriber error:&error];
@@ -140,6 +174,8 @@ static bool subscribeToSelf = NO;
 - (void)cleanupSubscriber
 {
     [_subscriber.view removeFromSuperview];
+    [_submos stop];
+    _submos = nil;
     _subscriber = nil;
 }
 
