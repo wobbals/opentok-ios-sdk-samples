@@ -6,10 +6,13 @@
 //
 
 #import "ViewController.h"
+#import "OTCXProvider.h"
+#import "OTDefaultAudioDevice.h"
 #import <OpenTok/OpenTok.h>
 
 @interface ViewController ()
-<OTSessionDelegate, OTSubscriberKitDelegate, OTPublisherDelegate>
+<OTSessionDelegate, OTSubscriberKitDelegate, OTPublisherDelegate,
+OTCXProviderDelegate>
 
 @end
 
@@ -30,14 +33,21 @@ static NSString* const kSessionId = @"";
 // Replace with your generated token
 static NSString* const kToken = @"";
 
-// Change to NO to subscribe to streams other than your own.
-static bool subscribeToSelf = NO;
+// Change to YES to simulate an outgoing call
+// Change to NO to simulate an incoming call
+static bool outgoingCall = YES;
 
 #pragma mark - View lifecycle
 
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+
+    OTDefaultAudioDevice* audioDevice =
+    [OTDefaultAudioDevice sharedInstance];
+    [OTAudioDeviceManager setAudioDevice:audioDevice];
+
+    [[OTCXProvider sharedInstance] setDelegate:self];
     
     // Step 1: As the view comes into the foreground, initialize a new instance
     // of OTSession and begin the connection process.
@@ -46,6 +56,7 @@ static bool subscribeToSelf = NO;
                                         delegate:self];
     [self doConnect];
 }
+
 
 - (BOOL)prefersStatusBarHidden
 {
@@ -64,6 +75,22 @@ static bool subscribeToSelf = NO;
         return YES;
     }
 }
+
+- (void)incomingCallAccepted:(BOOL)accepted {
+    NSLog(@"Incoming call: %d" , accepted);
+    [self doPublish];
+    OTStream* stream = [[_session.streams allValues] objectAtIndex:0];
+    [self doSubscribe:stream];
+}
+
+#pragma mark - OTCXProviderDelegate
+
+- (void)notifyCallTerminated {
+    NSLog(@"Provider says call terminated. Clean up!");
+    [self cleanupPublisher];
+    [self cleanupSubscriber];
+}
+
 #pragma mark - OpenTok methods
 
 /** 
@@ -121,6 +148,11 @@ static bool subscribeToSelf = NO;
  */
 - (void)doSubscribe:(OTStream*)stream
 {
+    if (_subscriber) {
+        NSLog(@"error: Subscriber already exists!");
+        return;
+    }
+
     _subscriber = [[OTSubscriber alloc] initWithStream:stream delegate:self];
     
     OTError *error = nil;
@@ -141,6 +173,8 @@ static bool subscribeToSelf = NO;
 {
     [_subscriber.view removeFromSuperview];
     _subscriber = nil;
+
+    [[OTCXProvider sharedInstance] triggerCallTerminatedRemotely];
 }
 
 # pragma mark - OTSession delegate callbacks
@@ -148,10 +182,6 @@ static bool subscribeToSelf = NO;
 - (void)sessionDidConnect:(OTSession*)session
 {
     NSLog(@"sessionDidConnect (%@)", session.sessionId);
-    
-    // Step 2: We have successfully connected, now instantiate a publisher and
-    // begin pushing A/V streams into OpenTok.
-    [self doPublish];
 }
 
 - (void)sessionDidDisconnect:(OTSession*)session
@@ -167,11 +197,15 @@ static bool subscribeToSelf = NO;
   streamCreated:(OTStream *)stream
 {
     NSLog(@"session streamCreated (%@)", stream.streamId);
-    
-    // Step 3a: (if NO == subscribeToSelf): Begin subscribing to a stream we
-    // have seen on the OpenTok session.
-    if (nil == _subscriber && !subscribeToSelf)
-    {
+
+    if (!outgoingCall) {
+        [[OTCXProvider sharedInstance]
+         triggerIncomingCallFromConnection:stream.connection
+         resultBlock:^(BOOL callAccepted) {
+            [self incomingCallAccepted:callAccepted];
+        }];
+    } else if (!_subscriber) {
+        [self doPublish];
         [self doSubscribe:stream];
     }
 }
@@ -191,6 +225,10 @@ streamDestroyed:(OTStream *)stream
 connectionCreated:(OTConnection *)connection
 {
     NSLog(@"session connectionCreated (%@)", connection.connectionId);
+
+    if (outgoingCall) {
+        [[OTCXProvider sharedInstance] triggerOutgoingCallToConnection:connection];
+    }
 }
 
 - (void)    session:(OTSession *)session
@@ -220,6 +258,8 @@ didFailWithError:(OTError*)error
     [_subscriber.view setFrame:CGRectMake(0, widgetHeight, widgetWidth,
                                          widgetHeight)];
     [self.view addSubview:_subscriber.view];
+
+    [[OTCXProvider sharedInstance] triggerCallConnected];
 }
 
 - (void)subscriber:(OTSubscriberKit*)subscriber
@@ -235,14 +275,7 @@ didFailWithError:(OTError*)error
 - (void)publisher:(OTPublisherKit *)publisher
     streamCreated:(OTStream *)stream
 {
-    // Step 3b: (if YES == subscribeToSelf): Our own publisher is now visible to
-    // all participants in the OpenTok session. We will attempt to subscribe to
-    // our own stream. Expect to see a slight delay in the subscriber video and
-    // an echo of the audio coming from the device microphone.
-    if (nil == _subscriber && subscribeToSelf)
-    {
-        [self doSubscribe:stream];
-    }
+
 }
 
 - (void)publisher:(OTPublisherKit*)publisher
